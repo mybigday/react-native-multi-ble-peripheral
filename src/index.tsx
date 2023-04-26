@@ -1,7 +1,7 @@
 import type { EventSubscription } from 'react-native';
 import type { Buffer } from 'buffer';
 import { NativeModules, Platform, NativeEventEmitter } from 'react-native';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'eventemitter3';
 
 const LINKING_ERROR =
   `The package '@fugood/react-native-multi-ble-peripheral' doesn't seem to be linked. Make sure: \n\n` +
@@ -120,7 +120,7 @@ class Peripheral extends EventEmitter {
   }
 
   async checkState(): Promise<string> {
-    return NativePeripheral.checkState();
+    return NativePeripheral.checkState(this.id);
   }
 
   async startAdvertising(
