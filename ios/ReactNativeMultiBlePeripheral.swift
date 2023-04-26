@@ -14,6 +14,7 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   var hasListeners: Bool = false
   var managers: [Int: CBPeripheralManager] = [:]
   var promises: [Int: (RCTPromiseResolveBlock, RCTPromiseRejectBlock)] = [:]
+  var services: [Int: [String:CBMutableService]] = [:]
   var deviceName: String = ""
 
   deinit {
@@ -36,11 +37,19 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
 
   override class func requiresMainQueueSetup() -> Bool { return false }
 
+  func getCharacteristic(
+    _ id: Int,
+    _ serviceUUID: String,
+    _ characteristicUUID: CBUUID
+  ) -> CBMutableCharacteristic? {
+    return services[id]?[serviceUUID]?.characteristics?.first(where: { $0.uuid == uuid })
+  }
+
   @objc(setDeviceName:withResolver:withRejecter:)
   func setDeviceName(
     _ name: String,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     deviceName = name
     resolve(nil)
@@ -49,19 +58,20 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   @objc(createPeripheral:withResolver:withRejecter:)
   func createPeripheral(
     _ id: Int,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     let manager = CBPeripheralManager(delegate: self, queue: nil)
     managers[id] = manager
+    services[id] = [:]
     resolve(nil)
   }
 
   @objc(checkState:withResolver:withRejecter:)
   func checkState(
     _ id: Int,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     let manager = managers[id]
     if manager == nil {
@@ -93,8 +103,8 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     _ id: Int,
     serviceUUID: String,
     primary: Bool,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     let manager = managers[id]
     if manager == nil {
@@ -103,6 +113,7 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     }
     let uuid = CBUUID(string: serviceUUID)
     let service = CBMutableService(type: uuid, primary: primary)
+    services[id]?[serviceUUID] = service
     promises[id] = (resolve, reject)
     manager!.add(service)
   }
@@ -114,16 +125,13 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     characteristicUUID: String,
     properties: NSNumber,
     permissions: NSNumber,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     let manager = managers[id]
     if manager == nil {
       reject("error", "Peripheral id does not exist", nil)
       return
-    }
-    let service = manager!.services?.first { service in
-      service.uuid == CBUUID(string: serviceUUID)
     }
     let uuid = CBUUID(string: characteristicUUID)
     let characteristic = CBMutableCharacteristic(
@@ -132,17 +140,17 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
       value: nil,
       permissions: CBAttributePermissions(rawValue: permissions.uintValue)
     )
-    service?.characteristics = [characteristic]
+    services[id]?[serviceUUID]?.characteristics?.append(charateristic)
     resolve(nil)
   }
 
   @objc(startAdvertising:withServices:withOptions:withResolver:withRejecter:)
   func startAdvertising(
     _ id: Int,
-    services: @nullable NSDictionary,
-    options: @nullable NSDictionary,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    services: NSDictionary?,
+    options: NSDictionary?,
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     let manager = managers[id]
     if manager == nil {
@@ -171,8 +179,8 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   @objc(stopAdvertising:withResolver:withRejecter:)
   func stopAdvertising(
     _ id: Int,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     let manager = managers[id]
     if manager == nil {
@@ -184,71 +192,60 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
       return
     }
     promises[id] = (resolve, reject)
-    manager?.stopAdvertising()
+    manager!.stopAdvertising()
   }
 
   @objc(updateValue:serviceUUID:characteristicUUID:value:withResolver:withRejecter:)
   func updateValue(
     _ id: Int,
-    serviceUUID: Int,
-    characteristicUUID: Int,
+    serviceUUID: String,
+    characteristicUUID: String,
     value: String,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
-    let manager = managers[id]
-    if manager == nil {
-      reject("error", "Peripheral id does not exist", nil)
-      return
+    if
+      let uuid = CBUUID(string: characteristicUUID),
+      let characteristic = getCharacteristic(id, serviceUUID, uuid)
+    {
+      characteristic.value = Data(base64Encoded: value)
+      resolve(nil)
+    } else {
+      reject("error", "Not found characteristic", nil)
     }
-    let service = manager!.services?.first { service in
-      service.uuid == CBUUID(string: serviceUUID)
-    }
-    let characteristic = service?.characteristics?.first { characteristic in
-      characteristic.uuid == CBUUID(string: characteristicUUID)
-    }
-    if characteristic == nil {
-      reject("error", "Characteristic does not exist", nil)
-      return
-    }
-    characteristic!.value = Data(base64Encoded: value)
-    resolve(nil)
   }
 
   @objc(sendNotification:serviceUUID:characteristicUUID:value:withResolver:withRejecter:)
   func sendNotification(
     _ id: Int,
-    serviceUUID: Int,
-    characteristicUUID: Int,
+    serviceUUID: String,
+    characteristicUUID: String,
     value: String,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
-    let manager = managers[id]
-    if manager == nil {
-      reject("error", "Peripheral id does not exist", nil)
-      return
-    }
-    let service = manager!.services?.first { service in
-      service.uuid == CBUUID(string: serviceUUID)
-    }
-    let characteristic = service?.characteristics?.first { characteristic in
-      characteristic.uuid == CBUUID(string: characteristicUUID)
-    }
-    let data = Data(base64Encoded: value)
-    let didSend = manager!.updateValue(data!, for: characteristic!, onSubscribedCentrals: nil)
-    if didSend == true {
-      resolve(nil)
+    if
+      let manager = managers[id],
+      let uuid = CBUUID(string: characteristicUUID),
+      let characteristic = getCharacteristic(id, serviceUUID, uuid),
+      let data = Data(base64Encoded: value)
+    {
+      let didSend = manager.updateValue(data, for: characteristic, onSubscribedCentrals: nil)
+      if didSend == true {
+        resolve(nil)
+      } else {
+        reject("error", "Send notification failed", nil)
+      }
     } else {
-      reject("error", "Failed to send value", nil)
+      reject("error", "Not found characteristic", nil)
     }
   }
 
   @objc(destroyPeripheral:withResolver:withRejecter:)
   func destroyPeripheral(
     _ id: Int,
-    resolve: RCTPromiseResolveBlock,
-    reject: RCTPromiseRejectBlock
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
     let manager = managers[id]
     if manager == nil {
@@ -260,6 +257,7 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     }
     managers.removeValue(forKey: id)
     promises.removeValue(forKey: id)
+    services.removeValue(forKey: id)
     resolve(nil)
   }
 
@@ -294,14 +292,18 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     }
   }
 
+  func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+    // not do anything
+  }
+
   func peripheralManager(
     _ peripheral: CBPeripheralManager,
     central: CBCentral,
     didSubscribeTo characteristic: CBCharacteristic
   ) {
-    let id = managers.someKey(forValue: peripheral),
+    let id = managers.someKey(forValue: peripheral)
     let characteristicUUID = characteristic.uuid.uuidString
-    let serviceUUID = characteristic.service.uuid.uuidString
+    let serviceUUID = characteristic.service?.uuid.uuidString
     sendEvent(withName: "onSubscribe", body: [
       "id": id,
       "serviceUUID": serviceUUID,
@@ -316,7 +318,7 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   ) {
     let id = managers.someKey(forValue: peripheral)
     let characteristicUUID = characteristic.uuid.uuidString
-    let serviceUUID = characteristic.service.uuid.uuidString
+    let serviceUUID = characteristic.service?.uuid.uuidString
     sendEvent(withName: "onUnsubscribe", body: [
       "id": id,
       "serviceUUID": serviceUUID,
@@ -330,13 +332,12 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   ) {
     if
       let id = managers.someKey(forValue: peripheral),
-      let promise = promises[id],
-      let (resolve, reject) = promise
+      let promise = promises[id]
     {
       if error != nil {
-        reject("error", "Failed to start advertising", error)
+        promise.1("error", "Failed to start advertising", error)
       } else {
-        resolve(nil)
+        promise.0(nil)
       }
     }
   }
@@ -347,16 +348,13 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     error: Error?
   ) {
     if
-      let id = managers.first { _, value in
-        value == peripheral
-      }?.key,
-      let promise = promises[id],
-      let (resolve, reject) = promise
+      let id = managers.someKey(forValue: peripheral),
+      let promise = promises[id]
     {
       if error != nil {
-        reject("error", "Failed to add service", error)
+        promise.1("error", "Failed to add service", error)
       } else {
-        resolve(nil)
+        promise.0(nil)
       }
     }
   }
@@ -366,16 +364,13 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     error: Error?
   ) {
     if
-      let id = managers.first { _, value in
-        value == peripheral
-      }?.key,
-      let promise = promises[id],
-      let (resolve, reject) = promise
+      let id = managers.someKey(forValue: peripheral),
+      let promise = promises[id]
     {
       if error != nil {
-        reject("error", "Failed to stop advertising", error)
+        promise.1("error", "Failed to stop advertising", error)
       } else {
-        resolve(nil)
+        promise.0(nil)
       }
     }
   }
