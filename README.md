@@ -11,11 +11,25 @@ npm install @fugood/react-native-multi-ble-peripheral
 ## Usage
 
 ```js
-import { multiply } from '@fugood/react-native-multi-ble-peripheral';
+import Peripheral, { Permission, Property } from '@fugood/react-native-multi-ble-peripheral';
+import { Buffer } from 'buffer';
 
-// ...
+Peripheral.setDeviceName('MyDevice');
 
-const result = await multiply(3, 7);
+const peripheral = new Peripheral();
+
+peripheral.addService('1234', true);
+
+peripheral.addCharacteristic(
+  '1234',
+  'ABCD',
+  Property.READ | Property.WRITE,
+  Permission.READABLE | Permission.WRITEABLE
+);
+
+peripheral.updateValue('1234', 'ABCD', Buffer.from('Hello World!'));
+
+peripheral.startAdvertising();
 ```
 
 ## Contributing
