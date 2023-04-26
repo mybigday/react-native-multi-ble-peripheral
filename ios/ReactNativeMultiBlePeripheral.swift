@@ -207,13 +207,12 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     let characteristic = service?.characteristics?.first { characteristic in
       characteristic.uuid == CBUUID(string: characteristicUUID)
     }
-    let data = value.data(using: .utf8)
-    let didSend = manager!.updateValue(data!, for: characteristic!, onSubscribedCentrals: nil)
-    if didSend == true {
-      resolve(nil)
-    } else {
-      reject("error", "Failed to send value", nil)
+    if characteristic == nil {
+      reject("error", "Characteristic does not exist", nil)
+      return
     }
+    characteristic!.value = Data(base64Encoded: value)
+    resolve(nil)
   }
 
   @objc(sendNotification:serviceUUID:characteristicUUID:value:withResolver:withRejecter:)
@@ -225,14 +224,24 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     resolve: RCTPromiseResolveBlock,
     reject: RCTPromiseRejectBlock
   ) -> Void {
-    updateValue(
-      id: id,
-      serviceUUID: serviceUUID,
-      characteristicUUID: characteristicUUID,
-      value: value,
-      resolve: resolve,
-      reject: reject
-    )
+    let manager = managers[id]
+    if manager == nil {
+      reject("error", "Peripheral id does not exist", nil)
+      return
+    }
+    let service = manager!.services?.first { service in
+      service.uuid == CBUUID(string: serviceUUID)
+    }
+    let characteristic = service?.characteristics?.first { characteristic in
+      characteristic.uuid == CBUUID(string: characteristicUUID)
+    }
+    let data = Data(base64Encoded: value)
+    let didSend = manager!.updateValue(data!, for: characteristic!, onSubscribedCentrals: nil)
+    if didSend == true {
+      resolve(nil)
+    } else {
+      reject("error", "Failed to send value", nil)
+    }
   }
 
   @objc(destroyPeripheral:withResolver:withRejecter:)
@@ -258,8 +267,11 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     _ peripheral: CBPeripheralManager,
     didReceiveRead request: CBATTRequest
   ) {
-    let data = request.characteristic.value
-    request.value = data
+    guard let value = request.characteristic.value, request.offset <= value.count else {
+      peripheral.respond(to: request, withResult: .invalidOffset)
+      return
+    }
+    request.value = value.subdata(in: request.offset..<value.count)
     peripheral.respond(to: request, withResult: .success)
   }
 
