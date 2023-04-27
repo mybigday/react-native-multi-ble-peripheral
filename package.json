@@ -1,5 +1,5 @@
 {
-  "name": "@fugood/react-native-multi-ble-peripheral",
+  "name": "react-native-multi-ble-peripheral",
   "version": "0.1.1",
   "description": "test",
   "main": "lib/commonjs/index",
