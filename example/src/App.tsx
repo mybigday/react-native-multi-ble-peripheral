@@ -6,7 +6,6 @@ import {
   Text,
   Platform,
   TouchableOpacity,
-  NativeModules,
 } from 'react-native';
 import Peripheral, {
   TxPower,
@@ -32,18 +31,20 @@ export default function App() {
   const peripheral = React.useRef<Peripheral>();
 
   React.useEffect(() => {
-    Peripheral.setDeviceName('Example BLE')
-      .catch(err => console.error('SET NAME', err));
+    Peripheral.setDeviceName('Example BLE').catch((err) =>
+      console.error('SET NAME', err)
+    );
   }, []);
 
   React.useEffect(() => {
     if (peripheral.current) {
       const oldBLE = peripheral.current;
-      oldBLE.stopAdvertising().then(() =>
-        oldBLE.destroy()
-      ).catch((err) => {
-        console.error(err);
-      });
+      oldBLE
+        .stopAdvertising()
+        .then(() => oldBLE.destroy())
+        .catch((err) => {
+          console.error(err);
+        });
     }
     const ble = new Peripheral();
     peripheral.current = ble;
@@ -64,15 +65,18 @@ export default function App() {
             hrCharacteristic,
             Buffer.from('00', 'hex')
           );
-          await ble.startAdvertising({
-            [hrService]: Buffer.from(''),
-          }, {
-            mode: AdvertiseMode.LOW_POWER,
-            txPower: TxPower.HIGH,
-            connectable: true,
-            includeDeviceName: true,
-            includeTxPowerLevel: true,
-          });
+          await ble.startAdvertising(
+            {
+              [hrService]: Buffer.from(''),
+            },
+            {
+              mode: AdvertiseMode.LOW_POWER,
+              txPower: TxPower.HIGH,
+              connectable: true,
+              includeDeviceName: true,
+              includeTxPowerLevel: true,
+            }
+          );
           setAdvertising(true);
         } catch (err) {
           setAdvertising(false);
@@ -84,20 +88,23 @@ export default function App() {
   }, [retry]);
 
   const notify = React.useCallback(() => {
-    peripheral.current?.sendNotification(
-      hrService,
-      hrCharacteristic,
-      Buffer.from('11', 'hex')
-    ).catch(console.error);
+    peripheral.current
+      ?.sendNotification(hrService, hrCharacteristic, Buffer.from('11', 'hex'))
+      .catch(console.error);
   }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Advertising: {advertising ? '(YES)' : '(NO)'}</Text>
+      <Text style={styles.text}>
+        Advertising: {advertising ? '(YES)' : '(NO)'}
+      </Text>
       <TouchableOpacity onPress={notify} style={styles.box}>
         <Text style={styles.text}>Notify</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => setRetry((i) => i+1)} style={styles.box}>
+      <TouchableOpacity
+        onPress={() => setRetry((i) => i + 1)}
+        style={styles.box}
+      >
         <Text style={styles.text}>Restart</Text>
       </TouchableOpacity>
     </View>
