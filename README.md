@@ -1,4 +1,4 @@
-# @fugood/react-native-multi-ble-peripheral
+# react-native-multi-ble-peripheral
 
 React Native Multi BLE Peripheral Manager
 
@@ -11,7 +11,7 @@ npm install @fugood/react-native-multi-ble-peripheral
 ## Usage
 
 ```js
-import Peripheral, { Permission, Property } from '@fugood/react-native-multi-ble-peripheral';
+import Peripheral, { Permission, Property } from 'react-native-multi-ble-peripheral';
 import { Buffer } from 'buffer';
 
 Peripheral.setDeviceName('MyDevice');

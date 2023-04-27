@@ -14,7 +14,7 @@ import Peripheral, {
   AdvertiseMode,
   Permission,
   Property,
-} from '@fugood/react-native-multi-ble-peripheral';
+} from 'react-native-multi-ble-peripheral';
 import { Buffer } from 'buffer';
 
 const hrService = Platform.select({

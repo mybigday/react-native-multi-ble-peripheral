@@ -2,7 +2,7 @@
   "compilerOptions": {
     "baseUrl": "./",
     "paths": {
-      "@fugood/react-native-multi-ble-peripheral": ["./src/index"]
+      "react-native-multi-ble-peripheral": ["./src/index"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
