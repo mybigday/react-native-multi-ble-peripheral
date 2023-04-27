@@ -44,7 +44,7 @@ export default function App() {
     if (Platform.OS === 'android') {
       (async () => {
         const connGranted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT!,
           {
             title: 'BLE Peripheral Example',
             message: 'BLE Peripheral needs access to your bluetooth',
@@ -61,7 +61,7 @@ export default function App() {
           return;
         }
         const advGranted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE!,
           {
             title: 'BLE Peripheral Example',
             message: 'BLE Peripheral needs access to your bluetooth',
@@ -112,7 +112,7 @@ export default function App() {
           hrService,
           hrCharacteristic,
           // eslint-disable-next-line no-bitwise
-          Property.READ | Property.NOTIFY | Property.INIDICATE,
+          Property.READ | Property.NOTIFY | Property.INDICATE,
           Permission.READABLE
         );
         await ble.updateValue(
