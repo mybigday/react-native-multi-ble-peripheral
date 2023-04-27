@@ -39,6 +39,7 @@ import android.provider.SyncStateContract
 import android.util.Log
 import android.util.Base64
 import android.os.ParcelUuid
+import androidx.core.content.ContextCompat
 
 import java.nio.charset.StandardCharsets
 import java.util.HashMap
@@ -55,91 +56,100 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     return NAME
   }
 
+  private var bluetoothManager: BluetoothManager? = null
   private var bluetoothAdapter: BluetoothAdapter? = null
   private var bluetoothLeAdvertisers: HashMap<Int, BluetoothLeAdvertiser> = HashMap()
   private var bluetoothGattServers: HashMap<Int, BluetoothGattServer> = HashMap()
   private var advertiseCallbacks: HashMap<Int, AdvertiseCallback> = HashMap()
 
   init {
-    val bluetoothManager = reactContext.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    bluetoothManager = ContextCompat.getSystemService(
+      reactContext,
+      BluetoothManager::class.java
+    )
     bluetoothAdapter = bluetoothManager?.adapter
   }
 
   fun sendEvent(name: String, params: WritableMap) {
-    reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+    getReactApplicationContext().getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
       .emit(name, params)
   }
 
   @ReactMethod
   fun setDeviceName(name: String, promise: Promise) {
-    val bluetoothAdapter = bluetoothAdapter
     if (bluetoothAdapter == null) {
       promise.reject("error", "Not support bluetooth")
       return
     }
-    bluetoothAdapter.name = name
+    bluetoothAdapter!!.name = name
     promise.resolve(null)
   }
 
   @ReactMethod
   fun createPeripheral(id: Int, promise: Promise) {
-    if (!bluetoothAdapter.isMultipleAdvertisementSupported()) {
+    if (bluetoothAdapter == null) {
+      promise.reject("error", "Not support bluetooth")
+      return
+    }
+    if (!bluetoothAdapter!!.isMultipleAdvertisementSupported()) {
       promise.reject("error", "Not support multiple advertisement")
       return
     }
-    val bluetoothLeAdvertiser = bluetoothAdapter?.bluetoothLeAdvertiser
+    val bluetoothLeAdvertiser = bluetoothAdapter!!.bluetoothLeAdvertiser
     if (bluetoothLeAdvertiser == null) {
       promise.reject("error", "Not support bluetoothLeAdvertiser")
       return
     }
     bluetoothLeAdvertisers[id] = bluetoothLeAdvertiser
 
-    val bluetoothGattServer = bluetoothManager.openGattServer(reactContext, object : BluetoothGattServerCallback() {
-      override fun onCharacteristicReadRequest(
-        device: BluetoothDevice,
-        requestId: Int,
-        offset: Int,
-        characteristic: BluetoothGattCharacteristic
-      ) {
-        super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
-        var gattServer = bluetoothGattServers[id]
-        if (gattServer != null) {
-          if (offset > characteristic.value.size) {
-            gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_INVALID_OFFSET, offset, null)
-          } else {
-            gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, characteristic.value)
+    val bluetoothGattServer = bluetoothManager!!.openGattServer(
+      getReactApplicationContext(),
+      object : BluetoothGattServerCallback() {
+        override fun onCharacteristicReadRequest(
+          device: BluetoothDevice,
+          requestId: Int,
+          offset: Int,
+          characteristic: BluetoothGattCharacteristic
+        ) {
+          super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
+          var gattServer = bluetoothGattServers[id]
+          if (gattServer != null) {
+            if (offset > characteristic.value.size) {
+              gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_INVALID_OFFSET, offset, null)
+            } else {
+              gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, characteristic.value)
+            }
           }
         }
-      }
 
-      override fun onCharacteristicWriteRequest(
-        device: BluetoothDevice,
-        requestId: Int,
-        characteristic: BluetoothGattCharacteristic,
-        preparedWrite: Boolean,
-        responseNeeded: Boolean,
-        offset: Int,
-        value: ByteArray
-      ) {
-        super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
-        var gattServer = bluetoothGattServers[id]
-        if (gattServer != null) {
-          val params = Arguments.createMap()
-          params.putString("id", id.toString())
-          params.putString("device", device.address)
-          params.putString("service", characteristic.service.uuid.toString())
-          params.putString("characteristic", characteristic.uuid.toString())
-          params.putInt("offset", offset)
-          params.putString("value", Base64.encodeToString(value, Base64.NO_WRAP))
-          sendEvent(reactApplicationContext, "onWrite", params)
-          if (responseNeeded) {
-            gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+        override fun onCharacteristicWriteRequest(
+          device: BluetoothDevice,
+          requestId: Int,
+          characteristic: BluetoothGattCharacteristic,
+          preparedWrite: Boolean,
+          responseNeeded: Boolean,
+          offset: Int,
+          value: ByteArray
+        ) {
+          super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
+          var gattServer = bluetoothGattServers[id]
+          if (gattServer != null) {
+            val params = Arguments.createMap()
+            params.putString("id", id.toString())
+            params.putString("device", device.address)
+            params.putString("service", characteristic.service.uuid.toString())
+            params.putString("characteristic", characteristic.uuid.toString())
+            params.putInt("offset", offset)
+            params.putString("value", Base64.encodeToString(value, Base64.NO_WRAP))
+            sendEvent("onWrite", params)
+            if (responseNeeded) {
+              gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+            }
           }
         }
       }
-    })
+    )
     if (bluetoothGattServer == null) {
-      bluetoothLeAdvertiser.close()
       bluetoothLeAdvertisers.remove(id)
       promise.reject("error", "Not support bluetoothGattServer")
       return
@@ -250,7 +260,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       promise.reject("error", "Not found characteristic")
       return
     }
-    characteristic.value = Base64.decode(value, Base64.NO_WRAP)
+    characteristic.value = Base64.decode(value, Base64.DEFAULT)
     promise.resolve(null)
   }
 
@@ -282,8 +292,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       promise.reject("error", "Not found characteristic")
       return
     }
-    characteristic.value = Base64.decode(value, Base64.NO_WRAP)
-    for (device in bluetoothGattServer.getConnectedDevices(BluetoothProfile.STATE_CONNECTED)) {
+    characteristic.value = Base64.decode(value, Base64.DEFAULT)
+    for (device in bluetoothGattServer.connectedDevices) {
       bluetoothGattServer.notifyCharacteristicChanged(device, characteristic, false)
     }
     promise.resolve(null)
@@ -292,8 +302,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
   @ReactMethod
   fun startAdvertising(
     id: Int,
-    services?: ReadableMap,
-    options?: ReadableMap,
+    services: ReadableMap?,
+    options: ReadableMap?,
     promise: Promise
   ) {
     val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
@@ -307,31 +317,17 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       return
     }
 
-    val connectable =
-      if (options?.hasKey("connectable")) options?.getBoolean("connectable")
-      else true
-    val includeDeviceName =
-      if (options?.hasKey("includeDeviceName")) options?.getBoolean("includeDeviceName")
-      else true
-    val includeTxPower =
-      if (options?.hasKey("includeTxPower")) options?.getBoolean("includeTxPower")
-      else false
-    val advertiseMode =
-      if (options?.hasKey("mode")) options?.getInt("mode")
-      else AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY
-    val txPowerLevel =
-      if (options?.hasKey("txPowerLevel")) options?.getInt("txPowerLevel")
-      else AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM
-    val manufacturerId =
-      if (options?.hasKey("manufacturerId")) options?.getInt("manufacturerId")
-      else null
-    val manufacturerData =
-      if (options?.hasKey("manufacturerData")) options?.getString("manufacturerData")
-      else null
+    val connectable = Utils.get<Boolean>(options, "connectable", true)
+    val includeDeviceName = Utils.get<Boolean>(options, "includeDeviceName", true)
+    val includeTxPower = Utils.get<Boolean>(options, "includeTxPower", false)
+    val advertiseMode = Utils.get<Int>(options, "mode", AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+    val txPowerLevel = Utils.get<Int>(options, "txPowerLevel", AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+    val manufacturerId = Utils.getInt(options, "manufacturerId")
+    val manufacturerData = Utils.getString(options, "manufacturerData")
 
     val advertiseSettings = AdvertiseSettings.Builder()
       .setAdvertiseMode(advertiseMode)
-      .setTxPowerLevel(txPower)
+      .setTxPowerLevel(txPowerLevel)
       .setConnectable(connectable)
       .setTimeout(0)
       .build()
@@ -340,13 +336,18 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       .setIncludeDeviceName(includeDeviceName)
       .setIncludeTxPowerLevel(includeTxPower)
     if (manufacturerData != null) {
-      advertiseDataBuilder.addManufacturerData(manufacturerId, Base64.decode(manufacturerData, Base64.DEFAULT))
+      advertiseDataBuilder.addManufacturerData(
+        manufacturerId!!,
+        Base64.decode(manufacturerData!!, Base64.DEFAULT)
+      )
     }
     if (services != null) {
-      for (service in services.entrySet()) {
+      for (service in services.getEntryIterator()) {
         val uuid = UUID.fromString(service.key)
-        val data = Base64.decode(service.value, Base64.DEFAULT)
-        advertiseDataBuilder.addServiceData(ParcelUuid(uuid), data)
+        if (service.value is String) {
+          val data = Base64.decode(service.value as String, Base64.DEFAULT)
+          advertiseDataBuilder.addServiceData(ParcelUuid(uuid), data)
+        }
         advertiseDataBuilder.addServiceUuid(ParcelUuid(uuid))
       }
     }
@@ -402,7 +403,6 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       return
     }
     bluetoothGattServer.close()
-    bluetoothLeAdvertiser.close()
     bluetoothGattServers.remove(id)
     bluetoothLeAdvertisers.remove(id)
     advertiseCallbacks.remove(id)
