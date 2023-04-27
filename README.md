@@ -5,7 +5,7 @@ React Native Multi BLE Peripheral Manager
 ## Installation
 
 ```sh
-npm install @fugood/react-native-multi-ble-peripheral
+npm install react-native-multi-ble-peripheral
 ```
 
 ## Usage
@@ -18,18 +18,17 @@ Peripheral.setDeviceName('MyDevice');
 
 const peripheral = new Peripheral();
 
-peripheral.addService('1234', true);
-
-peripheral.addCharacteristic(
-  '1234',
-  'ABCD',
-  Property.READ | Property.WRITE,
-  Permission.READABLE | Permission.WRITEABLE
-);
-
-peripheral.updateValue('1234', 'ABCD', Buffer.from('Hello World!'));
-
-peripheral.startAdvertising();
+peripheral.on('ready', async () => {
+  await peripheral.addService('1234', true);
+  await peripheral.addCharacteristic(
+    '1234',
+    'ABCD',
+    Property.READ | Property.WRITE,
+    Permission.READABLE | Permission.WRITEABLE
+  );
+  await peripheral.updateValue('1234', 'ABCD', Buffer.from('Hello World!'));
+  await peripheral.startAdvertising();
+})
 ```
 
 ## Contributing
