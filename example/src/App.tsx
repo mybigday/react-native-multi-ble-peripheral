@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import Peripheral, {
-  TxPower,
+  TxPowerLevel,
   AdvertiseMode,
   Permission,
   Property,
@@ -71,7 +71,7 @@ export default function App() {
             },
             {
               mode: AdvertiseMode.LOW_POWER,
-              txPower: TxPower.HIGH,
+              txPowerLevel: TxPowerLevel.HIGH,
               connectable: true,
               includeDeviceName: true,
               includeTxPowerLevel: true,

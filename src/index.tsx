@@ -34,7 +34,7 @@ export enum Property {
   EXTENDED_PROPS = 128,
 }
 
-export enum TxPower {
+export enum TxPowerLevel {
   ULTRA_LOW = 0,
   LOW = 1,
   MEDIUM = 2,
@@ -53,7 +53,7 @@ export interface AdvertiseServices {
 
 export interface AdvertiseOptions {
   mode?: AdvertiseMode;
-  txPower?: TxPower;
+  txPowerLevel?: TxPowerLevel;
   connectable?: boolean;
   includeDeviceName?: boolean;
   includeTxPowerLevel?: boolean;
