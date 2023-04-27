@@ -23,6 +23,7 @@ import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
@@ -41,12 +42,12 @@ import android.util.Base64
 import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 
-import java.nio.charset.StandardCharsets
-import java.util.HashMap
-import java.util.HashSet
 import java.util.UUID
-import java.util.concurrent.TimeUnit
-import java.util.Map
+import java.util.Arrays
+
+import kotlin.collections.MutableSet
+import kotlin.collections.MutableMap
+import kotlin.collections.LinkedHashMap
 
 @ReactModule(name = ReactNativeMultiBlePeripheralModule.NAME)
 class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext) :
@@ -58,9 +59,11 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
 
   private var bluetoothManager: BluetoothManager? = null
   private var bluetoothAdapter: BluetoothAdapter? = null
-  private var bluetoothLeAdvertisers: HashMap<Int, BluetoothLeAdvertiser> = HashMap()
-  private var bluetoothGattServers: HashMap<Int, BluetoothGattServer> = HashMap()
-  private var advertiseCallbacks: HashMap<Int, AdvertiseCallback> = HashMap()
+  private var bluetoothLeAdvertisers: MutableMap<Int, BluetoothLeAdvertiser> = LinkedHashMap()
+  private var bluetoothGattServers: MutableMap<Int, BluetoothGattServer> = LinkedHashMap()
+  private var registeredDevices: MutableMap<Int, MutableSet<BluetoothDevice>> = LinkedHashMap()
+  private var services: MutableMap<Int, MutableMap<String, BluetoothGattService>> = LinkedHashMap()
+  private var advertiseCallbacks: MutableMap<Int, AdvertiseCallback> = LinkedHashMap()
 
   init {
     bluetoothManager = ContextCompat.getSystemService(
@@ -87,24 +90,206 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
 
   @ReactMethod
   fun createPeripheral(id: Int, promise: Promise) {
-    if (bluetoothAdapter == null) {
+    val bluetoothAdapter = bluetoothAdapter
+    val bluetoothManager = bluetoothManager
+    if (bluetoothAdapter == null || bluetoothManager == null) {
       promise.reject("error", "Not support bluetooth")
       return
     }
-    if (!bluetoothAdapter!!.isMultipleAdvertisementSupported()) {
+    if (!bluetoothAdapter.isMultipleAdvertisementSupported()) {
       promise.reject("error", "Not support multiple advertisement")
       return
     }
-    val bluetoothLeAdvertiser = bluetoothAdapter!!.bluetoothLeAdvertiser
+    val bluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
     if (bluetoothLeAdvertiser == null) {
       promise.reject("error", "Not support bluetoothLeAdvertiser")
       return
     }
     bluetoothLeAdvertisers[id] = bluetoothLeAdvertiser
 
-    val bluetoothGattServer = bluetoothManager!!.openGattServer(
+    services[id] = LinkedHashMap()
+
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun checkState(id: Int, promise: Promise) {
+    val bluetoothAdapter = bluetoothAdapter
+    if (bluetoothAdapter == null) {
+      promise.reject("error", "Not support bluetooth")
+      return
+    }
+    var stateString = when (bluetoothAdapter.state) {
+      BluetoothAdapter.STATE_ON -> "on"
+      BluetoothAdapter.STATE_OFF -> "off"
+      BluetoothAdapter.STATE_TURNING_ON -> "turning_on"
+      BluetoothAdapter.STATE_TURNING_OFF -> "turning_off"
+      else -> "unknown"
+    }
+    promise.resolve(stateString)
+  }
+
+  @ReactMethod
+  fun addService(
+    id: Int,
+    uuid: String,
+    primary: Boolean,
+    promise: Promise
+  ) {
+    val serviceUUID = UUID.fromString(uuid)
+    val service = BluetoothGattService(
+      serviceUUID,
+      if (primary) BluetoothGattService.SERVICE_TYPE_PRIMARY else BluetoothGattService.SERVICE_TYPE_SECONDARY
+    )
+    services[id]?.put(uuid, service)
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun addCharacteristic(
+    id: Int,
+    serviceUUID: String,
+    characteristicUUID: String,
+    properties: Int,
+    permissions: Int,
+    promise: Promise
+  ) {
+    if (services[id] == null) {
+      promise.reject("error", "Not found peripheral")
+      return
+    }
+    val service = services[id]?.get(serviceUUID)
+    if (service == null) {
+      promise.reject("error", "Not found service")
+      return
+    }
+    val characteristic = BluetoothGattCharacteristic(
+      UUID.fromString(characteristicUUID),
+      properties,
+      permissions
+    )
+    if (properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+      val descriptor = BluetoothGattDescriptor(
+        Constants.CLIENT_CONFIG,
+        BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE
+      )
+      characteristic.addDescriptor(descriptor)
+    }
+    service.addCharacteristic(characteristic)
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun updateValue(
+    id: Int,
+    serviceUUID: String,
+    characteristicUUID: String,
+    value: String,
+    promise: Promise
+  ) {
+    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
+    if (bluetoothLeAdvertiser == null) {
+      promise.reject("error", "Not found bluetoothLeAdvertiser")
+      return
+    }
+    val service = services[id]?.get(serviceUUID)
+    if (service == null) {
+      promise.reject("error", "Not found service")
+      return
+    }
+    val characteristic = service.getCharacteristic(UUID.fromString(characteristicUUID))
+    if (characteristic == null) {
+      promise.reject("error", "Not found characteristic")
+      return
+    }
+    characteristic.value = Base64.decode(value, Base64.DEFAULT)
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun sendNotification(
+    id: Int,
+    serviceUUID: String,
+    characteristicUUID: String,
+    value: String,
+    confirm: Boolean,
+    promise: Promise
+  ) {
+    val bluetoothGattServer = bluetoothGattServers[id]
+    if (bluetoothGattServer == null) {
+      promise.reject("error", "Have not started advertising")
+      return
+    }
+    val registeredDevices = registeredDevices[id]
+    if (registeredDevices == null) {
+      promise.reject("error", "Not found registeredDevices")
+      return
+    }
+    val service = bluetoothGattServer.getService(UUID.fromString(serviceUUID))
+    if (service == null) {
+      promise.reject("error", "Not found service")
+      return
+    }
+    val characteristic = service.getCharacteristic(UUID.fromString(characteristicUUID))
+    if (characteristic == null) {
+      promise.reject("error", "Not found characteristic")
+      return
+    }
+    var value = Base64.decode(value, Base64.DEFAULT)
+    characteristic.value = value
+    for (device in registeredDevices) {
+      var response = bluetoothGattServer.notifyCharacteristicChanged(
+        device,
+        characteristic,
+        confirm,
+        value
+      )
+      Log.d(NAME, "Notify ${device.name} (${device.address}) response = $response")
+    }
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun startAdvertising(
+    id: Int,
+    advServices: ReadableMap?,
+    options: ReadableMap?,
+    promise: Promise
+  ) {
+    val bluetoothManager = bluetoothManager
+    if (bluetoothManager == null) {
+      promise.reject("error", "Not support bluetooth")
+      return
+    }
+    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
+    if (bluetoothLeAdvertiser == null) {
+      promise.reject("error", "Not found bluetoothLeAdvertiser")
+      return
+    }
+    if (advertiseCallbacks[id] != null) {
+      promise.reject("error", "Already advertising")
+      return
+    }
+
+    registeredDevices[id] = mutableSetOf<BluetoothDevice>()
+
+    val bluetoothGattServer = bluetoothManager.openGattServer(
       getReactApplicationContext(),
       object : BluetoothGattServerCallback() {
+
+        override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
+          super.onConnectionStateChange(device, status, newState)
+          var registeredDevices = registeredDevices[id]
+          if (registeredDevices != null) {
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+              Log.i(NAME, "BluetoothDevice CONNECTED: $device")
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+              Log.i(NAME, "BluetoothDevice DISCONNECTED: $device")
+              registeredDevices.remove(device)
+            }
+          }
+        }
+
         override fun onCharacteristicReadRequest(
           device: BluetoothDevice,
           requestId: Int,
@@ -120,6 +305,11 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
               gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, characteristic.value)
             }
           }
+        }
+
+        override fun onNotificationSent(device: BluetoothDevice, status: Int) {
+          super.onNotificationSent(device, status)
+          Log.d(NAME, "Notification send to device ${device.address}, status = $status")
         }
 
         override fun onCharacteristicWriteRequest(
@@ -147,174 +337,93 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
             }
           }
         }
+
+        override fun onDescriptorReadRequest(
+          device: BluetoothDevice,
+          requestId: Int,
+          offset: Int,
+          descriptor: BluetoothGattDescriptor
+        ) {
+          super.onDescriptorReadRequest(device, requestId, offset, descriptor)
+          var gattServer = bluetoothGattServers[id]
+          var registeredDevices = registeredDevices[id]
+          if (gattServer != null && registeredDevices != null) {
+            if (Constants.CLIENT_CONFIG == descriptor.uuid) {
+                Log.d(NAME, "Config descriptor read")
+                val returnValue =
+                  if (registeredDevices.contains(device))
+                    BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                  else
+                    BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+                gattServer.sendResponse(
+                  device,
+                  requestId,
+                  BluetoothGatt.GATT_SUCCESS,
+                  0,
+                  returnValue
+                )
+            } else {
+              Log.w(NAME, "Unknown descriptor write request")
+              gattServer.sendResponse(
+                device,
+                requestId,
+                BluetoothGatt.GATT_FAILURE,
+                0,
+                null
+              )
+            }
+          }
+        }
+
+        override fun onDescriptorWriteRequest(
+          device: BluetoothDevice,
+          requestId: Int,
+          descriptor: BluetoothGattDescriptor,
+          preparedWrite: Boolean,
+          responseNeeded: Boolean,
+          offset: Int,
+          value: ByteArray
+        ) {
+          super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value)
+          var gattServer = bluetoothGattServers[id]
+          var registeredDevices = registeredDevices[id]
+          if (gattServer != null && registeredDevices != null) {
+            if (Constants.CLIENT_CONFIG == descriptor.uuid) {
+              if (Arrays.equals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE, value)) {
+                Log.d(NAME, "Subscribe device to notifications: $device")
+                registeredDevices.add(device)
+              } else if (Arrays.equals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE, value)) {
+                Log.d(NAME, "Unsubscribe device from notifications: $device")
+                registeredDevices.remove(device)
+              }
+              if (responseNeeded) {
+                gattServer.sendResponse(
+                  device,
+                  requestId,
+                  BluetoothGatt.GATT_SUCCESS,
+                  0,
+                  null
+                )
+              }
+            } else {
+              Log.w(NAME, "Unknown descriptor write request")
+              gattServer.sendResponse(
+                device,
+                requestId,
+                BluetoothGatt.GATT_FAILURE,
+                0,
+                null
+              )
+            }
+          }
+        }
+
       }
     )
-    if (bluetoothGattServer == null) {
-      bluetoothLeAdvertisers.remove(id)
-      promise.reject("error", "Not support bluetoothGattServer")
-      return
-    }
     bluetoothGattServers[id] = bluetoothGattServer
 
-    promise.resolve(null)
-  }
-
-  @ReactMethod
-  fun checkState(promise: Promise) {
-    val bluetoothAdapter = bluetoothAdapter
-    if (bluetoothAdapter == null) {
-      promise.reject("error", "Not support bluetooth")
-      return
-    }
-    var stateString = when (bluetoothAdapter.state) {
-      BluetoothAdapter.STATE_ON -> "on"
-      BluetoothAdapter.STATE_OFF -> "off"
-      BluetoothAdapter.STATE_TURNING_ON -> "turning_on"
-      BluetoothAdapter.STATE_TURNING_OFF -> "turning_off"
-      else -> "unknown"
-    }
-    promise.resolve(stateString)
-  }
-
-  @ReactMethod
-  fun addService(
-    id: Int,
-    uuid: String,
-    primary: Boolean,
-    promise: Promise
-  ) {
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
-    if (bluetoothLeAdvertiser == null) {
-      promise.reject("error", "Not found bluetoothLeAdvertiser")
-      return
-    }
-    val bluetoothGattServer = bluetoothGattServers[id]
-    if (bluetoothGattServer == null) {
-      promise.reject("error", "Not found bluetoothGattServer")
-      return
-    }
-    val serviceUUID = UUID.fromString(uuid)
-    val service = BluetoothGattService(serviceUUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-    bluetoothGattServer.addService(service)
-    promise.resolve(null)
-  }
-
-  @ReactMethod
-  fun addCharacteristic(
-    id: Int,
-    serviceUUID: String,
-    characteristicUUID: String,
-    properties: Int,
-    permissions: Int,
-    promise: Promise
-  ) {
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
-    if (bluetoothLeAdvertiser == null) {
-      promise.reject("error", "Not found bluetoothLeAdvertiser")
-      return
-    }
-    val bluetoothGattServer = bluetoothGattServers[id]
-    if (bluetoothGattServer == null) {
-      promise.reject("error", "Not found bluetoothGattServer")
-      return
-    }
-    val service = bluetoothGattServer.getService(UUID.fromString(serviceUUID))
-    if (service == null) {
-      promise.reject("error", "Not found service")
-      return
-    }
-    val characteristic = BluetoothGattCharacteristic(
-      UUID.fromString(characteristicUUID),
-      properties,
-      permissions
-    )
-    service.addCharacteristic(characteristic)
-    promise.resolve(null)
-  }
-
-  @ReactMethod
-  fun updateValue(
-    id: Int,
-    serviceUUID: String,
-    characteristicUUID: String,
-    value: String,
-    promise: Promise
-  ) {
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
-    if (bluetoothLeAdvertiser == null) {
-      promise.reject("error", "Not found bluetoothLeAdvertiser")
-      return
-    }
-    val bluetoothGattServer = bluetoothGattServers[id]
-    if (bluetoothGattServer == null) {
-      promise.reject("error", "Not found bluetoothGattServer")
-      return
-    }
-    val service = bluetoothGattServer.getService(UUID.fromString(serviceUUID))
-    if (service == null) {
-      promise.reject("error", "Not found service")
-      return
-    }
-    val characteristic = service.getCharacteristic(UUID.fromString(characteristicUUID))
-    if (characteristic == null) {
-      promise.reject("error", "Not found characteristic")
-      return
-    }
-    characteristic.value = Base64.decode(value, Base64.DEFAULT)
-    promise.resolve(null)
-  }
-
-  @ReactMethod
-  fun sendNotification(
-    id: Int,
-    serviceUUID: String,
-    characteristicUUID: String,
-    value: String,
-    promise: Promise
-  ) {
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
-    if (bluetoothLeAdvertiser == null) {
-      promise.reject("error", "Not found bluetoothLeAdvertiser")
-      return
-    }
-    val bluetoothGattServer = bluetoothGattServers[id]
-    if (bluetoothGattServer == null) {
-      promise.reject("error", "Not found bluetoothGattServer")
-      return
-    }
-    val service = bluetoothGattServer.getService(UUID.fromString(serviceUUID))
-    if (service == null) {
-      promise.reject("error", "Not found service")
-      return
-    }
-    val characteristic = service.getCharacteristic(UUID.fromString(characteristicUUID))
-    if (characteristic == null) {
-      promise.reject("error", "Not found characteristic")
-      return
-    }
-    characteristic.value = Base64.decode(value, Base64.DEFAULT)
-    for (device in bluetoothGattServer.connectedDevices) {
-      bluetoothGattServer.notifyCharacteristicChanged(device, characteristic, false)
-    }
-    promise.resolve(null)
-  }
-
-  @ReactMethod
-  fun startAdvertising(
-    id: Int,
-    services: ReadableMap?,
-    options: ReadableMap?,
-    promise: Promise
-  ) {
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
-    if (bluetoothLeAdvertiser == null) {
-      promise.reject("error", "Not found bluetoothLeAdvertiser")
-      return
-    }
-    val bluetoothGattServer = bluetoothGattServers[id]
-    if (bluetoothGattServer == null) {
-      promise.reject("error", "Not found bluetoothGattServer")
-      return
+    for (service in services[id]!!.values) {
+      bluetoothGattServer.addService(service)
     }
 
     val connectable = Utils.get<Boolean>(options, "connectable", true)
@@ -335,14 +444,14 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     val advertiseDataBuilder = AdvertiseData.Builder()
       .setIncludeDeviceName(includeDeviceName)
       .setIncludeTxPowerLevel(includeTxPower)
-    if (manufacturerData != null) {
+    if (manufacturerId != null && manufacturerData != null) {
       advertiseDataBuilder.addManufacturerData(
-        manufacturerId!!,
-        Base64.decode(manufacturerData!!, Base64.DEFAULT)
+        manufacturerId,
+        Base64.decode(manufacturerData, Base64.DEFAULT)
       )
     }
-    if (services != null) {
-      for (service in services.getEntryIterator()) {
+    if (advServices != null) {
+      for (service in advServices.getEntryIterator()) {
         val uuid = UUID.fromString(service.key)
         if (service.value is String) {
           val data = Base64.decode(service.value as String, Base64.DEFAULT)
@@ -384,6 +493,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       return
     }
     bluetoothLeAdvertiser.stopAdvertising(advertiseCallbacks[id])
+    registeredDevices.remove(id)
     promise.resolve(null)
   }
 
@@ -392,20 +502,16 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     id: Int,
     promise: Promise
   ) {
+    val callback = advertiseCallbacks[id]
     val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
-    if (bluetoothLeAdvertiser == null) {
-      promise.reject("error", "Not found bluetoothLeAdvertiser")
-      return
+    if (callback != null && bluetoothLeAdvertiser != null) {
+      bluetoothLeAdvertiser.stopAdvertising(callback)
     }
-    val bluetoothGattServer = bluetoothGattServers[id]
-    if (bluetoothGattServer == null) {
-      promise.reject("error", "Not found bluetoothGattServer")
-      return
-    }
-    bluetoothGattServer.close()
+    bluetoothGattServers[id]?.close()
     bluetoothGattServers.remove(id)
     bluetoothLeAdvertisers.remove(id)
     advertiseCallbacks.remove(id)
+    registeredDevices.remove(id)
     promise.resolve(null)
   }
 

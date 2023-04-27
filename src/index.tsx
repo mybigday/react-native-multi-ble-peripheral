@@ -187,13 +187,15 @@ class Peripheral extends EventEmitter {
   async sendNotification(
     serviceUuid: string,
     characteristicUuid: string,
-    value: Buffer
+    value: Buffer,
+    isIndication: boolean = false
   ) {
     return NativePeripheral.sendNotification(
       this.id,
       serviceUuid,
       characteristicUuid,
-      value.toString('base64')
+      value.toString('base64'),
+      isIndication
     );
   }
 
