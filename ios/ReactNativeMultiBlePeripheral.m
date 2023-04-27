@@ -55,6 +55,7 @@ RCT_EXTERN_METHOD(sendNotification:(NSInteger *)index
                   serviceUUID:(NSString *)serviceUUID
                   characteristicUUID:(NSString *)characteristicUUID
                   value:(NSString *)value
+                  confirm:(BOOL)confirm
                   withResolver:(RCTPromiseResolveBlock)resolve
                   withRejecter:(RCTPromiseRejectBlock)reject)
 

@@ -13,8 +13,10 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
 
   var hasListeners: Bool = false
   var managers: [Int: CBPeripheralManager] = [:]
-  var rejects: [Int: RCTPromiseRejectBlock] = [:]
-  var resolves: [Int: RCTPromiseResolveBlock] = [:]
+  var createRejects: [Int: RCTPromiseRejectBlock] = [:]
+  var createResolves: [Int: RCTPromiseResolveBlock] = [:]
+  var startRejects: [Int: RCTPromiseRejectBlock] = [:]
+  var startResolves: [Int: RCTPromiseResolveBlock] = [:]
   var services: [Int: [String:CBMutableService]] = [:]
   var deviceName: String = ""
 
@@ -66,9 +68,10 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     resolve: @escaping RCTPromiseResolveBlock,
     reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
+    createResolves[id] = resolve
+    createRejects[id] = reject
     managers[id] = CBPeripheralManager(delegate: self, queue: nil, options: nil)
     services[id] = [:]
-    resolve(nil)
   }
 
   @objc(checkState:withResolver:withRejecter:)
@@ -187,8 +190,8 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
       CBAdvertisementDataLocalNameKey: deviceName,
       CBAdvertisementDataServiceUUIDsKey: uuids,
     ] as [String : Any]
-    resolves[id] = resolve
-    rejects[id] = reject
+    startResolves[id] = resolve
+    startRejects[id] = reject
     manager!.startAdvertising(advertisementData)
   }
 
@@ -227,12 +230,13 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
     }
   }
 
-  @objc(sendNotification:serviceUUID:characteristicUUID:value:withResolver:withRejecter:)
+  @objc(sendNotification:serviceUUID:characteristicUUID:value:confirm:withResolver:withRejecter:)
   func sendNotification(
     _ id: Int,
     serviceUUID: String,
     characteristicUUID: String,
     value: String,
+    confirm: Bool,
     resolve: @escaping RCTPromiseResolveBlock,
     reject: @escaping RCTPromiseRejectBlock
   ) -> Void {
@@ -305,7 +309,30 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   }
 
   func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-    // not do anything
+    if let id = managers.someKey(forValue: peripheral) {
+      let state = peripheral.state
+      switch state {
+      case .poweredOn:
+        createResolves[id]?(nil)
+        createResolves.removeValue(forKey: id)
+        createRejects.removeValue(forKey: id)
+      case .poweredOff:
+        createRejects[id]?("error", "Peripheral is powered off", nil)
+        createRejects.removeValue(forKey: id)
+      case .resetting:
+        createRejects[id]?("error", "Peripheral is resetting", nil)
+        createRejects.removeValue(forKey: id)
+      case .unauthorized:
+        createRejects[id]?("error", "Peripheral is unauthorized", nil)
+        createRejects.removeValue(forKey: id)
+      case .unsupported:
+        createRejects[id]?("error", "Peripheral is unsupported", nil)
+        createRejects.removeValue(forKey: id)
+      case .unknown:
+        createRejects[id]?("error", "Peripheral state is unknown", nil)
+        createRejects.removeValue(forKey: id)
+      }
+    }
   }
 
   func peripheralManager(
@@ -344,8 +371,8 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   ) {
     if
       let id = managers.someKey(forValue: peripheral),
-      let resolve = resolves[id],
-      let reject = rejects[id]
+      let resolve = startResolves[id],
+      let reject = startRejects[id]
     {
       if error != nil {
         reject("error", "Fail to start: \(error)", error)
