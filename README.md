@@ -8,6 +8,42 @@ React Native Multi BLE Peripheral Manager
 npm install react-native-multi-ble-peripheral
 ```
 
+### iOS
+
+Add these lines in `Info.plist`
+
+```xml
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>For advertise as BLE peripheral</string>
+```
+
+### Android
+
+Add these lines in `AndroidManifest.xml`
+
+```xml
+<uses-permission android:name="android.permission.BLUETOOTH" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+```
+
+#### Request permission
+
+> Should check permission before create peripheral instance
+
+```js
+import { PermissionsAndroid } from 'react-native';
+
+await PermissionsAndroid.request(
+  PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+  options,
+);
+await PermissionsAndroid.request(
+  PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+  options,
+);
+```
+
 ## Usage
 
 ```js
@@ -28,7 +64,7 @@ peripheral.on('ready', async () => {
   );
   await peripheral.updateValue('1234', 'ABCD', Buffer.from('Hello World!'));
   await peripheral.startAdvertising();
-})
+});
 ```
 
 ## Contributing
