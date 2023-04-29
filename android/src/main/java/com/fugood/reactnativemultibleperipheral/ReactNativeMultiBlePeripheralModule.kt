@@ -238,13 +238,22 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     var value = Base64.decode(value, Base64.DEFAULT)
     characteristic.value = value
     for (device in registeredDevices) {
-      var response = bluetoothGattServer.notifyCharacteristicChanged(
-        device,
-        characteristic,
-        confirm,
-        value
-      )
-      Log.d(NAME, "Notify ${device.name} (${device.address}) response = $response")
+      if (Build.VERSION.SDK_INT >= 33) {
+        val response = bluetoothGattServer.notifyCharacteristicChanged(
+          device,
+          characteristic,
+          confirm,
+          value
+        )
+        Log.d(NAME, "Notify ${device.name} (${device.address}) response = $response")
+      } else {
+        val isSucc = bluetoothGattServer.notifyCharacteristicChanged(
+          device,
+          characteristic,
+          confirm
+        )
+        Log.d(NAME, "Notify ${device.name} (${device.address}) isSucc = $isSucc")
+      }
     }
     promise.resolve(null)
   }
