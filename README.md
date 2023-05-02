@@ -19,12 +19,31 @@ Add these lines in `Info.plist`
 
 ### Android
 
-Add these lines in `AndroidManifest.xml`
+- Add these lines in `AndroidManifest.xml`
 
 ```xml
 <uses-permission android:name="android.permission.BLUETOOTH" />
 <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+```
+
+- Do this patch if you build on SDK 33+
+
+```diff
+diff --git a/android/src/main/java/com/fugood/reactnativemultibleperipheral/ReactNativeMultiBlePeripheralModule.kt b/android/src/main/java/com/fugood/reactnativemultibleperipheral/ReactNativeMultiBlePeripheralModule.kt
+index 2e763af..746c0c7 100644
+--- a/android/src/main/java/com/fugood/reactnativemultibleperipheral/ReactNativeMultiBlePeripheralModule.kt
++++ b/android/src/main/java/com/fugood/reactnativemultibleperipheral/ReactNativeMultiBlePeripheralModule.kt
+@@ -241,7 +241,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
+       val response = bluetoothGattServer.notifyCharacteristicChanged(
+         device,
+         characteristic,
+-        confirm
++        confirm,
++        value
+       )
+       Log.d(NAME, "Notify ${device.name} (${device.address}) response = $response")
+     }
 ```
 
 #### Request permission
