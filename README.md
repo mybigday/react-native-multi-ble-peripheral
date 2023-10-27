@@ -73,6 +73,7 @@ Peripheral.setDeviceName('MyDevice');
 
 const peripheral = new Peripheral();
 
+// We need wait peripheral manager ready before any operation.
 peripheral.on('ready', async () => {
   await peripheral.addService('1234', true);
   await peripheral.addCharacteristic(
