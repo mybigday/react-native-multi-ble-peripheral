@@ -243,7 +243,6 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
         characteristic,
         confirm
       )
-      Log.d(NAME, "Notify ${device.name} (${device.address}) response = $response")
     }
     promise.resolve(null)
   }
@@ -308,7 +307,6 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) {
           super.onNotificationSent(device, status)
-          Log.d(NAME, "Notification send to device ${device.address}, status = $status")
         }
 
         override fun onCharacteristicWriteRequest(
@@ -348,7 +346,6 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
           var registeredDevices = registeredDevices[id]
           if (gattServer != null && registeredDevices != null) {
             if (Constants.CLIENT_CONFIG == descriptor.uuid) {
-                Log.d(NAME, "Config descriptor read")
                 val returnValue =
                   if (registeredDevices.contains(device))
                     BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -389,10 +386,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
           if (gattServer != null && registeredDevices != null) {
             if (Constants.CLIENT_CONFIG == descriptor.uuid) {
               if (Arrays.equals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE, value)) {
-                Log.d(NAME, "Subscribe device to notifications: $device")
                 registeredDevices.add(device)
               } else if (Arrays.equals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE, value)) {
-                Log.d(NAME, "Unsubscribe device from notifications: $device")
                 registeredDevices.remove(device)
               }
               if (responseNeeded) {
