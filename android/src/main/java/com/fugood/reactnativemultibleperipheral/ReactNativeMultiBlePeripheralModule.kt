@@ -468,7 +468,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
         }
         override fun onStartFailure(errorCode: Int) {
           super.onStartFailure(errorCode)
-          promise.reject("error", "startAdvertising error")
+          promise.reject("error", "Error on advertising, code $errorCode")
         }
       }
     }
