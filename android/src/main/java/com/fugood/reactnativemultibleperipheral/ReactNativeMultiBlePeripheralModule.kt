@@ -96,7 +96,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       promise.reject("error", "Not support bluetooth")
       return
     }
-    if (!bluetoothAdapter.isMultipleAdvertisementSupported()) {
+    if (!bluetoothAdapter.isMultipleAdvertisementSupported() && bluetoothLeAdvertisers.isNotEmpty()) {
       promise.reject("error", "Not support multiple advertisement")
       return
     }
