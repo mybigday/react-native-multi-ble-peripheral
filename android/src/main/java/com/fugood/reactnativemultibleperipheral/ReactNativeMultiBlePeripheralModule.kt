@@ -445,7 +445,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       )
     }
     if (advServices != null) {
-      for (service in advServices.getEntryIterator()) {
+      for (service in advServices.entryIterator) {
         val uuid = UUID.fromString(service.key)
         if (service.value is String) {
           val data = Base64.decode(service.value as String, Base64.DEFAULT)
