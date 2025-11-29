@@ -32,13 +32,13 @@
     "!**/.*"
   ],
   "scripts": {
-    "test": "jest",
-    "typecheck": "tsc --noEmit",
+    "example": "yarn workspace react-native-multi-ble-peripheral-example",
+    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
+    "prepare": "bob build",
+    "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
-    "prepack": "bob build",
     "release": "release-it",
-    "example": "yarn --cwd example",
-    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build"
+    "test": "jest"
   },
   "keywords": [
     "react-native",

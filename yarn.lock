@@ -4114,27 +4114,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ReactNativeMultiBlePeripheralExample@workspace:example":
-  version: 0.0.0-use.local
-  resolution: "ReactNativeMultiBlePeripheralExample@workspace:example"
-  dependencies:
-    "@babel/core": "npm:^7.25.2"
-    "@babel/preset-env": "npm:^7.25.3"
-    "@babel/runtime": "npm:^7.25.0"
-    "@react-native-community/cli": "npm:20.0.0"
-    "@react-native-community/cli-platform-android": "npm:20.0.0"
-    "@react-native-community/cli-platform-ios": "npm:20.0.0"
-    "@react-native/babel-preset": "npm:0.81.1"
-    "@react-native/metro-config": "npm:0.81.1"
-    "@react-native/typescript-config": "npm:0.81.1"
-    "@types/react": "npm:^19.1.0"
-    react: "npm:19.1.0"
-    react-native: "npm:0.81.1"
-    react-native-builder-bob: "npm:^0.40.16"
-    react-native-monorepo-config: "npm:^0.1.9"
-  languageName: unknown
-  linkType: soft
-
 "abbrev@npm:^4.0.0":
   version: 4.0.0
   resolution: "abbrev@npm:4.0.0"
@@ -10621,6 +10600,27 @@ __metadata:
   checksum: 10c0/fa88a725b4fe65443291fba746cccf2a3732defe6c8e1f7aab532b8345feac2b34af7fe17a28a96d30c7b9520f0f99e42962069ef8eb31acc4d33e7aa3b68a83
   languageName: node
   linkType: hard
+
+"react-native-multi-ble-peripheral-example@workspace:example":
+  version: 0.0.0-use.local
+  resolution: "react-native-multi-ble-peripheral-example@workspace:example"
+  dependencies:
+    "@babel/core": "npm:^7.25.2"
+    "@babel/preset-env": "npm:^7.25.3"
+    "@babel/runtime": "npm:^7.25.0"
+    "@react-native-community/cli": "npm:20.0.0"
+    "@react-native-community/cli-platform-android": "npm:20.0.0"
+    "@react-native-community/cli-platform-ios": "npm:20.0.0"
+    "@react-native/babel-preset": "npm:0.81.1"
+    "@react-native/metro-config": "npm:0.81.1"
+    "@react-native/typescript-config": "npm:0.81.1"
+    "@types/react": "npm:^19.1.0"
+    react: "npm:19.1.0"
+    react-native: "npm:0.81.1"
+    react-native-builder-bob: "npm:^0.40.16"
+    react-native-monorepo-config: "npm:^0.1.9"
+  languageName: unknown
+  linkType: soft
 
 "react-native-multi-ble-peripheral@workspace:.":
   version: 0.0.0-use.local

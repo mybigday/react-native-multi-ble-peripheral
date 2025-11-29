@@ -139,8 +139,8 @@ export default function App() {
         await ble.addCharacteristic(
           hrService,
           writableCharacteristic,
-          Property.WRITE | Property.WRITE_NO_RESPONSE | Property.INDICATE,
-          Permission.WRITEABLE | Permission.WRITE_ENCRYPTED
+          Property.WRITE | Property.WRITE_NO_RESPONSE,
+          Permission.WRITEABLE
         );
         await ble.startAdvertising(
           {
