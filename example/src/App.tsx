@@ -1,5 +1,5 @@
+/* eslint-disable no-bitwise */
 import * as React from 'react';
-
 import {
   StyleSheet,
   View,
@@ -14,6 +14,8 @@ import Peripheral, {
   AdvertiseMode,
   Permission,
   Property,
+  type WriteEvent,
+  type SubscriptionEvent,
 } from 'react-native-multi-ble-peripheral';
 import { Buffer } from 'buffer';
 
@@ -27,6 +29,11 @@ const hrCharacteristic = Platform.select({
   default: '00002a37-0000-1000-8000-00805f9b34fb',
 });
 
+const writableCharacteristic = Platform.select({
+  ios: '2a38',
+  default: '00002a38-0000-1000-8000-00805f9b34fb',
+});
+
 const createValue = () => {
   const val = Math.random() * 100;
   const payload = Buffer.alloc(1);
@@ -38,7 +45,7 @@ export default function App() {
   const [hasPerm, setHasPerm] = React.useState<boolean>(false);
   const [advertising, setAdvertising] = React.useState<boolean>(false);
   const [retry, setRetry] = React.useState<number>(0);
-  const peripheral = React.useRef<Peripheral>();
+  const peripheral = React.useRef<Peripheral | null>(null);
 
   React.useEffect(() => {
     if (Platform.OS === 'android') {
@@ -104,6 +111,15 @@ export default function App() {
     }
     const ble = new Peripheral();
     peripheral.current = ble;
+    ble.on('write', (event: WriteEvent) => {
+      console.log('WRITE', event);
+    });
+    ble.on('subscribe', (event: SubscriptionEvent) => {
+      console.log('SUBSCRIBE', event);
+    });
+    ble.on('unsubscribe', (event: SubscriptionEvent) => {
+      console.log('UNSUBSCRIBE', event);
+    });
     ble.on('ready', async () => {
       try {
         console.log('Currect State:', await ble.checkState());
@@ -111,7 +127,7 @@ export default function App() {
         await ble.addCharacteristic(
           hrService,
           hrCharacteristic,
-          // eslint-disable-next-line no-bitwise
+
           Property.READ | Property.NOTIFY | Property.INDICATE,
           Permission.READABLE
         );
@@ -119,6 +135,12 @@ export default function App() {
           hrService,
           hrCharacteristic,
           Buffer.from('00', 'hex')
+        );
+        await ble.addCharacteristic(
+          hrService,
+          writableCharacteristic,
+          Property.WRITE | Property.WRITE_NO_RESPONSE,
+          Permission.WRITEABLE
         );
         await ble.startAdvertising(
           {
