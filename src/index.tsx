@@ -17,10 +17,14 @@ const nativeEvents = NativePeripheral
   : null;
 
 export enum Permission {
-  READABLE = 1,
-  READ_ENCRYPTED = 2,
-  WRITEABLE = 4,
-  WRITE_ENCRYPTED = 8,
+  READABLE = 0x01,
+  READ_ENCRYPTED = Platform.OS === 'android' ? 0x02 : 0x04,
+  READ_ENCRYPTED_MITM = Platform.OS === 'android' ? 0x04 : 0,
+  WRITEABLE = Platform.OS === 'android' ? 0x10 : 0x02,
+  WRITE_ENCRYPTED = Platform.OS === 'android' ? 0x20 : 0x08,
+  WRITE_ENCRYPTED_MITM = Platform.OS === 'android' ? 0x40 : 0x0,
+  WRITE_SIGNED = Platform.OS === 'android' ? 0x80 : 0x0,
+  WRITE_SIGNED_MITM = Platform.OS === 'android' ? 0x100 : 0x0,
 }
 
 export enum Property {
