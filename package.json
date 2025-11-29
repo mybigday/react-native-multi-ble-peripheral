@@ -1,6 +1,6 @@
 {
   "name": "react-native-multi-ble-peripheral",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Multiple instance BLE Peripheral emulator module for React Native",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
