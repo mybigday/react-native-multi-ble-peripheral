@@ -1,7 +1,8 @@
 import type { EventSubscription } from 'react-native';
 import type { Buffer } from 'buffer';
-import { NativeModules, Platform, NativeEventEmitter } from 'react-native';
+import { Platform, NativeEventEmitter } from 'react-native';
 import { EventEmitter } from 'eventemitter3';
+import NativePeripheral from './NativeReactNativeMultiBlePeripheral';
 
 const LINKING_ERROR =
   `The package '@fugood/react-native-multi-ble-peripheral' doesn't seem to be linked. Make sure: \n\n` +
@@ -9,12 +10,11 @@ const LINKING_ERROR =
   '- You rebuilt the app after installing the package\n' +
   '- You are not using Expo Go\n';
 
-const { ReactNativeMultiBlePeripheral: NativePeripheral } = NativeModules;
-
 let nextId = 0;
-const nativeEvents = NativePeripheral
-  ? new NativeEventEmitter(NativePeripheral)
-  : null;
+const nativeEvents =
+  Platform.OS === 'ios' && NativePeripheral
+    ? new NativeEventEmitter(NativePeripheral)
+    : new NativeEventEmitter();
 
 export enum Permission {
   READABLE = 0x01,
@@ -88,17 +88,20 @@ class Peripheral extends EventEmitter {
     super();
     this.id = nextId++;
     this._listeners = [
-      nativeEvents!.addListener('onWrite', ({ id, ...args }) => {
+      nativeEvents.addListener('onWrite', (event: any) => {
+        const { id, ...args } = event;
         if (!this.destroyed && id === this.id) {
           this.emit('write', args as WriteEvent);
         }
       }),
-      nativeEvents!.addListener('onSubscribe', ({ id, ...args }) => {
+      nativeEvents.addListener('onSubscribe', (event: any) => {
+        const { id, ...args } = event;
         if (!this.destroyed && id === this.id) {
           this.emit('subscribe', args as SubscriptionEvent);
         }
       }),
-      nativeEvents!.addListener('onUnsubscribe', ({ id, ...args }) => {
+      nativeEvents.addListener('onUnsubscribe', (event: any) => {
+        const { id, ...args } = event;
         if (!this.destroyed && id === this.id) {
           this.emit('unsubscribe', args as SubscriptionEvent);
         }
@@ -120,11 +123,11 @@ class Peripheral extends EventEmitter {
   }
 
   static async setDeviceName(name: string) {
-    return NativePeripheral.setDeviceName(name);
+    return NativePeripheral?.setDeviceName(name);
   }
 
   async checkState(): Promise<string> {
-    return NativePeripheral.checkState(this.id);
+    return await NativePeripheral!.checkState(this.id);
   }
 
   async startAdvertising(
@@ -145,7 +148,7 @@ class Peripheral extends EventEmitter {
             ])
           )
         : null;
-    return NativePeripheral.startAdvertising(
+    return NativePeripheral!.startAdvertising(
       this.id,
       stringifiedServices,
       stringifiedOptions
@@ -153,11 +156,11 @@ class Peripheral extends EventEmitter {
   }
 
   async stopAdvertising() {
-    return NativePeripheral.stopAdvertising(this.id);
+    return NativePeripheral!.stopAdvertising(this.id);
   }
 
   async addService(uuid: string, primary: boolean) {
-    return NativePeripheral.addService(this.id, uuid, primary);
+    return NativePeripheral!.addService(this.id, uuid, primary);
   }
 
   async addCharacteristic(
@@ -166,7 +169,7 @@ class Peripheral extends EventEmitter {
     properties: Property,
     permissions: Permission
   ) {
-    return NativePeripheral.addCharacteristic(
+    return NativePeripheral!.addCharacteristic(
       this.id,
       serviceUuid,
       uuid,
@@ -180,7 +183,7 @@ class Peripheral extends EventEmitter {
     characteristicUuid: string,
     value: Buffer
   ) {
-    return NativePeripheral.updateValue(
+    return NativePeripheral!.updateValue(
       this.id,
       serviceUuid,
       characteristicUuid,
@@ -194,7 +197,7 @@ class Peripheral extends EventEmitter {
     value: Buffer,
     isIndication: boolean = false
   ) {
-    return NativePeripheral.sendNotification(
+    return NativePeripheral!.sendNotification(
       this.id,
       serviceUuid,
       characteristicUuid,
@@ -204,7 +207,7 @@ class Peripheral extends EventEmitter {
   }
 
   async destroy() {
-    return NativePeripheral.destroyPeripheral(this.id).then(() => {
+    return NativePeripheral!.destroyPeripheral(this.id).then(() => {
       this.emit('destroy');
     });
   }

@@ -1,6 +1,7 @@
 import Foundation
 import CoreBluetooth
 import React
+import ReactNativeMultiBlePeripheralSpec
 
 extension Dictionary where Value: Equatable {
   func someKey(forValue val: Value) -> Key? {
@@ -9,7 +10,7 @@ extension Dictionary where Value: Equatable {
 }
 
 @objc(ReactNativeMultiBlePeripheral)
-class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
+class ReactNativeMultiBlePeripheral: RCTEventEmitter <NativeReactNativeMultiBlePeripheralSpec>, CBPeripheralManagerDelegate {
 
   var hasListeners: Bool = false
   var managers: [Int: CBPeripheralManager] = [:]
@@ -41,6 +42,10 @@ class ReactNativeMultiBlePeripheral: RCTEventEmitter, CBPeripheralManagerDelegat
   }
 
   override class func requiresMainQueueSetup() -> Bool { return false }
+
+  override class func moduleName() -> String! {
+    return "ReactNativeMultiBlePeripheral"
+  }
 
   func getCharacteristic(
     _ id: Int,

@@ -1,8 +1,6 @@
 package com.fugood.reactnativemultibleperipheral
 
 import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReactContextBaseJavaModule
-import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableArray
@@ -51,7 +49,7 @@ import kotlin.collections.LinkedHashMap
 
 @ReactModule(name = ReactNativeMultiBlePeripheralModule.NAME)
 class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext) :
-  ReactContextBaseJavaModule(reactContext) {
+  NativeReactNativeMultiBlePeripheralSpec(reactContext) {
 
   override fun getName(): String {
     return NAME
@@ -78,8 +76,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       .emit(name, params)
   }
 
-  @ReactMethod
-  fun setDeviceName(name: String, promise: Promise) {
+  override fun setDeviceName(name: String, promise: Promise) {
     if (bluetoothAdapter == null) {
       promise.reject("error", "Not support bluetooth")
       return
@@ -88,8 +85,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     promise.resolve(null)
   }
 
-  @ReactMethod
-  fun createPeripheral(id: Int, promise: Promise) {
+  override fun createPeripheral(id: Double, promise: Promise) {
     val bluetoothAdapter = bluetoothAdapter
     val bluetoothManager = bluetoothManager
     if (bluetoothAdapter == null || bluetoothManager == null) {
@@ -105,15 +101,15 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       promise.reject("error", "Not support bluetoothLeAdvertiser")
       return
     }
-    bluetoothLeAdvertisers[id] = bluetoothLeAdvertiser
+    val intId = id.toInt()
+    bluetoothLeAdvertisers[intId] = bluetoothLeAdvertiser
 
-    services[id] = LinkedHashMap()
+    services[intId] = LinkedHashMap()
 
     promise.resolve(null)
   }
 
-  @ReactMethod
-  fun checkState(id: Int, promise: Promise) {
+  override fun checkState(id: Double, promise: Promise) {
     val bluetoothAdapter = bluetoothAdapter
     if (bluetoothAdapter == null) {
       promise.reject("error", "Not support bluetooth")
@@ -129,9 +125,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     promise.resolve(stateString)
   }
 
-  @ReactMethod
-  fun addService(
-    id: Int,
+  override fun addService(
+    id: Double,
     uuid: String,
     primary: Boolean,
     promise: Promise
@@ -141,34 +136,35 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       serviceUUID,
       if (primary) BluetoothGattService.SERVICE_TYPE_PRIMARY else BluetoothGattService.SERVICE_TYPE_SECONDARY
     )
-    services[id]?.put(uuid, service)
+    val intId = id.toInt()
+    services[intId]?.put(uuid, service)
     promise.resolve(null)
   }
 
-  @ReactMethod
-  fun addCharacteristic(
-    id: Int,
+  override fun addCharacteristic(
+    id: Double,
     serviceUUID: String,
     characteristicUUID: String,
-    properties: Int,
-    permissions: Int,
+    properties: Double,
+    permissions: Double,
     promise: Promise
   ) {
-    if (services[id] == null) {
+    val intId = id.toInt()
+    if (services[intId] == null) {
       promise.reject("error", "Not found peripheral")
       return
     }
-    val service = services[id]?.get(serviceUUID)
+    val service = services[intId]?.get(serviceUUID)
     if (service == null) {
       promise.reject("error", "Not found service")
       return
     }
     val characteristic = BluetoothGattCharacteristic(
       UUID.fromString(characteristicUUID),
-      properties,
-      permissions
+      properties.toInt(),
+      permissions.toInt()
     )
-    if (properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+    if (properties.toInt() and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
       val descriptor = BluetoothGattDescriptor(
         Constants.CLIENT_CONFIG,
         BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE
@@ -179,20 +175,20 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     promise.resolve(null)
   }
 
-  @ReactMethod
-  fun updateValue(
-    id: Int,
+  override fun updateValue(
+    id: Double,
     serviceUUID: String,
     characteristicUUID: String,
     value: String,
     promise: Promise
   ) {
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
+    val intId = id.toInt()
+    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[intId]
     if (bluetoothLeAdvertiser == null) {
       promise.reject("error", "Not found bluetoothLeAdvertiser")
       return
     }
-    val service = services[id]?.get(serviceUUID)
+    val service = services[intId]?.get(serviceUUID)
     if (service == null) {
       promise.reject("error", "Not found service")
       return
@@ -206,21 +202,21 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     promise.resolve(null)
   }
 
-  @ReactMethod
-  fun sendNotification(
-    id: Int,
+  override fun sendNotification(
+    id: Double,
     serviceUUID: String,
     characteristicUUID: String,
     value: String,
     confirm: Boolean,
     promise: Promise
   ) {
-    val bluetoothGattServer = bluetoothGattServers[id]
+    val intId = id.toInt()
+    val bluetoothGattServer = bluetoothGattServers[intId]
     if (bluetoothGattServer == null) {
       promise.reject("error", "Have not started advertising")
       return
     }
-    val registeredDevices = registeredDevices[id]
+    val registeredDevices = registeredDevices[intId]
     if (registeredDevices == null) {
       promise.reject("error", "Not found registeredDevices")
       return
@@ -247,9 +243,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     promise.resolve(null)
   }
 
-  @ReactMethod
-  fun startAdvertising(
-    id: Int,
+  override fun startAdvertising(
+    id: Double,
     advServices: ReadableMap?,
     options: ReadableMap?,
     promise: Promise
@@ -259,17 +254,18 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       promise.reject("error", "Not support bluetooth")
       return
     }
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
+    val intId = id.toInt()
+    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[intId]
     if (bluetoothLeAdvertiser == null) {
       promise.reject("error", "Not found bluetoothLeAdvertiser")
       return
     }
-    if (advertiseCallbacks[id] != null) {
+    if (advertiseCallbacks[intId] != null) {
       promise.reject("error", "Already advertising")
       return
     }
 
-    registeredDevices[id] = mutableSetOf<BluetoothDevice>()
+    registeredDevices[intId] = mutableSetOf<BluetoothDevice>()
 
     val bluetoothGattServer = bluetoothManager.openGattServer(
       getReactApplicationContext(),
@@ -277,7 +273,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
           super.onConnectionStateChange(device, status, newState)
-          var registeredDevices = registeredDevices[id]
+          var registeredDevices = registeredDevices[intId]
           if (registeredDevices != null) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
               Log.i(NAME, "BluetoothDevice CONNECTED: $device")
@@ -295,7 +291,7 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
           characteristic: BluetoothGattCharacteristic
         ) {
           super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
-          var gattServer = bluetoothGattServers[id]
+          var gattServer = bluetoothGattServers[intId]
           if (gattServer != null) {
             if (offset > characteristic.value.size) {
               gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_INVALID_OFFSET, offset, null)
@@ -319,10 +315,10 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
           value: ByteArray
         ) {
           super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
-          var gattServer = bluetoothGattServers[id]
+          var gattServer = bluetoothGattServers[intId]
           if (gattServer != null) {
             val params = Arguments.createMap()
-            params.putString("id", id.toString())
+            params.putString("id", intId.toString())
             params.putString("device", device.address)
             params.putString("service", characteristic.service.uuid.toString())
             params.putString("characteristic", characteristic.uuid.toString())
@@ -342,8 +338,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
           descriptor: BluetoothGattDescriptor
         ) {
           super.onDescriptorReadRequest(device, requestId, offset, descriptor)
-          var gattServer = bluetoothGattServers[id]
-          var registeredDevices = registeredDevices[id]
+          var gattServer = bluetoothGattServers[intId]
+          var registeredDevices = registeredDevices[intId]
           if (gattServer != null && registeredDevices != null) {
             if (Constants.CLIENT_CONFIG == descriptor.uuid) {
                 val returnValue =
@@ -381,8 +377,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
           value: ByteArray
         ) {
           super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value)
-          var gattServer = bluetoothGattServers[id]
-          var registeredDevices = registeredDevices[id]
+          var gattServer = bluetoothGattServers[intId]
+          var registeredDevices = registeredDevices[intId]
           if (gattServer != null && registeredDevices != null) {
             if (Constants.CLIENT_CONFIG == descriptor.uuid) {
               if (Arrays.equals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE, value)) {
@@ -414,9 +410,9 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
 
       }
     )
-    bluetoothGattServers[id] = bluetoothGattServer
+    bluetoothGattServers[intId] = bluetoothGattServer
 
-    for (service in services[id]!!.values) {
+    for (service in services[intId]!!.values) {
       bluetoothGattServer.addService(service)
     }
 
@@ -455,8 +451,8 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
       }
     }
 
-    if (advertiseCallbacks[id] == null) {
-      advertiseCallbacks[id] = object : AdvertiseCallback() {
+    if (advertiseCallbacks[intId] == null) {
+      advertiseCallbacks[intId] = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
           super.onStartSuccess(settingsInEffect)
           promise.resolve(null)
@@ -469,46 +465,50 @@ class ReactNativeMultiBlePeripheralModule(reactContext: ReactApplicationContext)
     }
 
     val advertiseData = advertiseDataBuilder.build()
-    bluetoothLeAdvertiser.startAdvertising(advertiseSettings, advertiseData, advertiseCallbacks[id])
+    bluetoothLeAdvertiser.startAdvertising(advertiseSettings, advertiseData, advertiseCallbacks[intId])
   }
 
-  @ReactMethod
-  fun stopAdvertising(
-    id: Int,
+  override fun stopAdvertising(
+    id: Double,
     promise: Promise
   ) {
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
+    val intId = id.toInt()
+    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[intId]
     if (bluetoothLeAdvertiser == null) {
       promise.reject("error", "Not found bluetoothLeAdvertiser")
       return
     }
-    if (advertiseCallbacks[id] == null) {
+    if (advertiseCallbacks[intId] == null) {
       promise.reject("error", "Had not start advertising")
       return
     }
-    bluetoothLeAdvertiser.stopAdvertising(advertiseCallbacks[id])
-    registeredDevices.remove(id)
+    bluetoothLeAdvertiser.stopAdvertising(advertiseCallbacks[intId])
+    registeredDevices.remove(intId)
     promise.resolve(null)
   }
 
-  @ReactMethod
-  fun destroyPeripheral(
-    id: Int,
+  override fun destroyPeripheral(
+    id: Double,
     promise: Promise
   ) {
-    val callback = advertiseCallbacks[id]
-    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[id]
+    val intId = id.toInt()
+    val callback = advertiseCallbacks[intId]
+    val bluetoothLeAdvertiser = bluetoothLeAdvertisers[intId]
     if (callback != null && bluetoothLeAdvertiser != null) {
       bluetoothLeAdvertiser.stopAdvertising(callback)
     }
-    bluetoothGattServers[id]?.close()
-    bluetoothGattServers.remove(id)
-    bluetoothLeAdvertisers.remove(id)
-    advertiseCallbacks.remove(id)
-    registeredDevices.remove(id)
+    bluetoothGattServers[intId]?.close()
+    bluetoothGattServers.remove(intId)
+    bluetoothLeAdvertisers.remove(intId)
+    advertiseCallbacks.remove(intId)
+    registeredDevices.remove(intId)
+    services.remove(intId)
     promise.resolve(null)
   }
 
+  override fun addListener(eventName: String) {}
+
+  override fun removeListeners(count: Double) {}
 
   companion object {
     const val NAME = "ReactNativeMultiBlePeripheral"
